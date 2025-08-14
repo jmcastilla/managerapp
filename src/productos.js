@@ -106,4 +106,4 @@ async function syncProductos() {
 
 
 // Ejecutar inmediatamente al iniciar
-syncProductos();
+module.exports = { syncProductos };

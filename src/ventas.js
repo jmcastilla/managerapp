@@ -187,4 +187,4 @@ function calcularRotaciones(data) {
 
 
 // Ejecutar inmediatamente al iniciar
-syncVentas();
+module.exports = { syncVentas };

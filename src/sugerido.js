@@ -130,4 +130,4 @@ async function ejecutarSugeridos() {
 
 
 // 6. Ejecutar inmediatamente al iniciar
-ejecutarSugeridos();
+module.exports = { ejecutarSugeridos };

@@ -168,4 +168,4 @@ async function runOnce() {
 
 
 // Ejecuta al iniciar
-runOnce();
+module.exports = { runOnce };

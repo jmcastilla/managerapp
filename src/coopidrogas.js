@@ -212,4 +212,4 @@ async function syncCoopidrogas() {
 
 
 // Ejecutar al iniciar
-syncCoopidrogas();
+module.exports = { syncCoopidrogas };

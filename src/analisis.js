@@ -119,4 +119,4 @@ async function ejecutarAnalisis() {
 
 
 // 6. Ejecutar inmediatamente al iniciar el script
-ejecutarAnalisis();
+module.exports = { ejecutarAnalisis };
