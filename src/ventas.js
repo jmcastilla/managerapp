@@ -27,7 +27,7 @@ async function getToken() {
 
 // Paso 2: Llamar al servicio para una bodega específica
 async function getVentas(token) {
-  /*const body = {
+  const body = {
     id_solicitud: 6254,
     service: 'BI215HGJY6CNS',
     appuser: 'habibbi01',
@@ -40,8 +40,8 @@ async function getVentas(token) {
       fecha_inicial: '20250506',
       fecha_final: '20250806'
     }
-  };*/
-  const fechaFinal = dayjs().format('YYYYMMDD');
+  };
+  /*const fechaFinal = dayjs().format('YYYYMMDD');
   const fechaInicial = dayjs().subtract(89, 'day').format('YYYYMMDD');
   console.log(fechaFinal+" - "+fechaInicial);
   const body = {
@@ -63,7 +63,7 @@ async function getVentas(token) {
       fecha_inicial: fechaInicial,
       fecha_final: fechaFinal
     }
-  };
+  };*/
 
   const response = await axios.post(
     'https://saaserpzn1a.qualitycolombia.com.co:58090/G4lj4BB6t1cW/saas/api/execute',
@@ -185,6 +185,6 @@ function calcularRotaciones(data) {
   return Object.values(rotaciones);
 }
 
-
+syncVentas();
 // Ejecutar inmediatamente al iniciar
 module.exports = { syncVentas };

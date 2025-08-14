@@ -209,7 +209,6 @@ async function syncCoopidrogas() {
     console.error('[coopidrogas] Error:', e?.response?.status || e.message || e);
   }
 }
+syncCoopidrogas();
 
-
-// Ejecutar al iniciar
-module.exports = { syncCoopidrogas };
+cron.schedule('20/50 * * * *', syncCoopidrogas);

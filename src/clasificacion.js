@@ -128,6 +128,5 @@ async function ejecutarClasificacionABC() {
   }
 }
 
-
 // 6. Ejecutar inmediatamente
 module.exports = { ejecutarClasificacionABC };
