@@ -166,11 +166,6 @@ async function runOnce() {
   }
 }
 
-// ============ CRON: cada 2 horas ============
-cron.schedule('0 */2 * * *', () => {
-  console.log(`[cron] ejecutando ${new Date().toISOString()}`);
-  runOnce();
-});
 
 // Ejecuta al iniciar
 runOnce();

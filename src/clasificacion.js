@@ -128,11 +128,6 @@ async function ejecutarClasificacionABC() {
   }
 }
 
-// 5. Ejecutar cada 4 horas con node-cron
-cron.schedule('0 */4 * * *', () => {
-  console.log(`[${new Date().toISOString()}] (CRON) Ejecutando clasificación ABC cada 4 horas...`);
-  ejecutarClasificacionABC();
-});
 
 // 6. Ejecutar inmediatamente
 ejecutarClasificacionABC();

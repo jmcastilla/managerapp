@@ -117,11 +117,6 @@ async function ejecutarAnalisis() {
   }
 }
 
-// 5. Ejecutar cada 4 horas automáticamente
-cron.schedule('0 */4 * * *', () => {
-  console.log(`[${new Date().toISOString()}] (CRON) Ejecutando análisis cada 4 horas...`);
-  ejecutarAnalisis();
-});
 
 // 6. Ejecutar inmediatamente al iniciar el script
 ejecutarAnalisis();

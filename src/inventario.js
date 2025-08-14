@@ -154,8 +154,5 @@ function unificarBodegas(inventario) {
   return Object.values(agrupado);
 }
 
-// Ejecutar cada 30 minutos
-cron.schedule('*/30 * * * *', syncInventario);
-
 // Ejecutar inmediatamente al iniciar
 syncInventario();

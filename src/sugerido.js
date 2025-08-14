@@ -127,11 +127,7 @@ async function ejecutarSugeridos() {
   }
 }
 
-// 5. Ejecutar automáticamente cada 4 horas
-cron.schedule('0 */4 * * *', () => {
-  console.log(`[${new Date().toISOString()}] (CRON) Ejecutando sugeridos de compra...`);
-  ejecutarSugeridos();
-});
+
 
 // 6. Ejecutar inmediatamente al iniciar
 ejecutarSugeridos();

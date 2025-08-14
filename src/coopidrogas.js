@@ -210,11 +210,6 @@ async function syncCoopidrogas() {
   }
 }
 
-// Ejecutar cada 2 horas (en el minuto 0)
-cron.schedule('0 */2 * * *', () => {
-  console.log(`[cron] Ejecutando syncCoopidrogas cada 2 horas...`);
-  syncCoopidrogas();
-});
 
 // Ejecutar al iniciar
 syncCoopidrogas();

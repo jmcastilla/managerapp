@@ -186,8 +186,5 @@ function calcularRotaciones(data) {
 }
 
 
-// Ejecutar cada 30 minutos
-cron.schedule('*/30 * * * *', syncVentas);
-
 // Ejecutar inmediatamente al iniciar
 syncVentas();

@@ -105,9 +105,5 @@ async function syncProductos() {
 }
 
 
-
-// Ejecutar cada 30 minutos
-cron.schedule('*/30 * * * *', syncProductos);
-
 // Ejecutar inmediatamente al iniciar
 syncProductos();
