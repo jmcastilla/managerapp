@@ -5,7 +5,7 @@ const cron = require('node-cron');
 const { ejecutarAnalisis } = require('./analisis');        // cada 4 horas
 const { ejecutarClasificacionABC } = require('./clasificacion'); // cada 4 horas
 const { syncCoopidrogas } = require('./coopidrogas');      // cada 2 horas
-const { runOnce: enviarCorreo } = require('./enviocorreo'); // cada 2 horas
+const { runOnce } = require('./enviocorreo'); // cada 2 horas
 const { syncInventario } = require('./inventario');        // cada 30 min
 const { syncProductos } = require('./productos');          // cada 24 horas
 const { ejecutarSugeridos } = require('./sugerido');       // cada 4 horas
@@ -40,7 +40,7 @@ cron.schedule('20,50 * * * *', () => {
 // Envío de correo - cada 5 min
 cron.schedule('*/5 * * * *', () => {
   console.log(`[cron] Envío de correo`);
-  enviarCorreo();
+  runOnce();
 });
 
 // Clasificación ABC - cada 24 horas (2 am)
