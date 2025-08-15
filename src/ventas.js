@@ -27,6 +27,8 @@ async function getToken() {
 
 // Paso 2: Llamar al servicio para una bodega específica
 async function getVentas(token) {
+  const fechaFinal = dayjs().format('YYYYMMDD');
+  const fechaInicial = dayjs().subtract(89, 'day').format('YYYYMMDD');
   const body = {
     id_solicitud: 6254,
     service: 'BI215HGJY6CNS',
@@ -37,8 +39,9 @@ async function getVentas(token) {
     data: {
       usmng: 'MNGBI',
       emp: '101',
-      fecha_inicial: '20250506',
-      fecha_final: '20250806'
+      tpumd: 1,
+      fecha_inicial: fechaInicial,
+      fecha_final: fechaFinal
     }
   };
   /*const fechaFinal = dayjs().format('YYYYMMDD');
