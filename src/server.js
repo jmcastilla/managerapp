@@ -8,7 +8,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const app = express();
-app.use(cors({ origin: "http://localhost:3000" })); // permite tu front
+app.use(cors({ origin: "*" }));// permite tu front
 app.use(express.json());
 
 // Pool de MySQL
