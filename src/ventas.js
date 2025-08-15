@@ -25,10 +25,8 @@ async function getToken() {
   return token;
 }
 
-// Paso 2: Llamar al servicio para una bodega específica
-async function getVentas(token) {
-  const fechaFinal = dayjs().format('YYYYMMDD');
-  const fechaInicial = dayjs().subtract(89, 'day').format('YYYYMMDD');
+// Paso 2: Llamar al servicio para un rango específico (<= 30 días)
+async function getVentasRango(token, fechaInicial, fechaFinal) {
   const body = {
     id_solicitud: 6254,
     service: 'BI215HGJY6CNS',
@@ -40,33 +38,10 @@ async function getVentas(token) {
       usmng: 'MNGBI',
       emp: '101',
       tpumd: 1,
-      fecha_inicial: fechaInicial,
-      fecha_final: fechaFinal
+      fecha_inicial: fechaInicial, // YYYYMMDD
+      fecha_final: fechaFinal      // YYYYMMDD
     }
   };
-  /*const fechaFinal = dayjs().format('YYYYMMDD');
-  const fechaInicial = dayjs().subtract(89, 'day').format('YYYYMMDD');
-  console.log(fechaFinal+" - "+fechaInicial);
-  const body = {
-    id_solicitud: 6255,
-    service: 'BI226GSRGSRTT',
-    appuser: 'habibbi01',
-    pwd: 'I96SBG4G43KY56MS',
-    company: 'habib',
-    entity: 'G362SSDG003PRB',
-    data: {
-      usmng: 'MNGBI',
-      emp: '101',
-      sku: '*',
-      dtbod: 1,
-      bod:'*',
-      suc:'*',
-      cco:'*',
-      tpumd: 1,
-      fecha_inicial: fechaInicial,
-      fecha_final: fechaFinal
-    }
-  };*/
 
   const response = await axios.post(
     'https://saaserpzn1a.qualitycolombia.com.co:58090/G4lj4BB6t1cW/saas/api/execute',
@@ -75,11 +50,33 @@ async function getVentas(token) {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
-      }
+      },
+      timeout: 120000
     }
   );
-  console.log(response)
-  return response.data.data; // array de objetos
+
+  return response?.data?.data || [];
+}
+
+// Helper: construir tres ventanas de 30 días (no superpuestas)
+function buildWindows90Days(today = dayjs()) {
+  // Rango 1: 60–89 días atrás
+  const w1Start = today.subtract(89, 'day').format('YYYYMMDD');
+  const w1End   = today.subtract(60, 'day').format('YYYYMMDD');
+
+  // Rango 2: 30–59 días atrás
+  const w2Start = today.subtract(59, 'day').format('YYYYMMDD');
+  const w2End   = today.subtract(30, 'day').format('YYYYMMDD');
+
+  // Rango 3: 0–29 días atrás
+  const w3Start = today.subtract(29, 'day').format('YYYYMMDD');
+  const w3End   = today.format('YYYYMMDD');
+
+  return [
+    { start: w1Start, end: w1End },
+    { start: w2Start, end: w2End },
+    { start: w3Start, end: w3End }
+  ];
 }
 
 // Paso 3: Guardar en MySQL usando inserciones por lotes
@@ -118,38 +115,52 @@ async function saveRotacionesToDatabase(rotaciones) {
   console.log(`[${new Date().toISOString()}] Guardado exitoso de rotaciones`);
 }
 
-// Paso 4: Orquestar el proceso
+// Paso 4: Orquestar el proceso (3 llamadas de 30 días)
 async function syncVentas() {
   try {
     console.log(`[${new Date().toISOString()}] Obteniendo token...`);
     const token = await getToken();
 
-    console.log(`[${new Date().toISOString()}] Consultando ventas...`);
-    const ventas = await getVentas(token);
+    console.log(`[${new Date().toISOString()}] Construyendo ventanas de 30 días...`);
+    const windows = buildWindows90Days(dayjs());
+
+    let ventasAcumuladas = [];
+    for (const [idx, w] of windows.entries()) {
+      console.log(
+        `[${new Date().toISOString()}] Consultando ventas ventana ${idx + 1} (${w.start} a ${w.end})...`
+      );
+      const parcial = await getVentasRango(token, w.start, w.end);
+      ventasAcumuladas = ventasAcumuladas.concat(parcial);
+      console.log(
+        `[${new Date().toISOString()}] Ventana ${idx + 1}: ${parcial.length} registros`
+      );
+    }
+
+    console.log(`[${new Date().toISOString()}] Total bruto 90 días: ${ventasAcumuladas.length}`);
 
     console.log(`[${new Date().toISOString()}] Calculando rotación 30/60/90 días...`);
-    const rotaciones = calcularRotaciones(ventas);
+    const rotaciones = calcularRotaciones(ventasAcumuladas);
 
-    console.log(`[${new Date().toISOString()}] Total registros: ${rotaciones.length}`);
+    console.log(`[${new Date().toISOString()}] Total combinaciones SKU|BOD: ${rotaciones.length}`);
     await saveRotacionesToDatabase(rotaciones);
 
   } catch (error) {
-    console.error('Error:', error.message);
+    // A veces error.response?.data trae más detalle
+    const detail = error?.response?.data || error?.message;
+    console.error('Error:', detail);
   }
 }
 
-
+// (Opcional) Si tu backend entrega "fec" como "YYYYMMDD HH:mm:ss" y necesitas normalizar
 function parseUpdToDatetime(rawUpd) {
-  // Quita espacios extra si los hay
-  const clean = rawUpd.replace(/\s+/g, ' ').trim(); // "20250727 08:23:28"
+  const clean = rawUpd.replace(/\s+/g, ' ').trim();
   const [datePart, timePart] = clean.split(' ');
-
   if (!datePart || !timePart) return null;
-
   const formatted = `${datePart.slice(0,4)}-${datePart.slice(4,6)}-${datePart.slice(6,8)} ${timePart}`;
   return formatted; // YYYY-MM-DD HH:mm:ss
 }
 
+// Calcula rotaciones a partir del arreglo consolidado
 function calcularRotaciones(data) {
   const hoy = new Date();
   const dias30 = new Date(hoy); dias30.setDate(hoy.getDate() - 30);
@@ -159,7 +170,8 @@ function calcularRotaciones(data) {
   const rotaciones = {};
 
   for (const item of data) {
-    const fecha = dayjs(item.fec, 'YYYYMMDD').toDate();
+    // "fec" debe venir como YYYYMMDD (string) o número
+    const fecha = dayjs(String(item.fec), 'YYYYMMDD').toDate();
     const clave = `${item.sku}|${item.bod}`;
 
     if (!rotaciones[clave]) {
@@ -188,6 +200,5 @@ function calcularRotaciones(data) {
   return Object.values(rotaciones);
 }
 
-syncVentas();
-// Ejecutar inmediatamente al iniciar
+
 module.exports = { syncVentas };
