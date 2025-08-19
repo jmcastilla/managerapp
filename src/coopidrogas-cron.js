@@ -222,7 +222,7 @@ async function syncCoopidrogas() {
     console.log('[coopidrogas] Login OK');
 
     // Paginación
-    const rowsPerPage = 200;
+    const rowsPerPage = 15000;
     let page = 1;
     const all = [];
 
