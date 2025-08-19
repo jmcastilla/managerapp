@@ -164,7 +164,8 @@ async function syncCoopidrogas() {
         \`precioreal\` = VALUES(\`precioreal\`),
         \`bonificacion\` = VALUES(\`bonificacion\`),
         \`disponible\` = VALUES(\`disponible\`),
-        \`maximo\` = VALUES(\`maximo\`)
+        \`maximo\` = VALUES(\`maximo\`),
+        \`actualizacion\` = NOW()
     `;
     const values = rows.map(r => [
       r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
