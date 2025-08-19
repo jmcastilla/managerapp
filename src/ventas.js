@@ -72,6 +72,7 @@ function buildWindows90Days(today = dayjs()) {
   const w3Start = today.subtract(29, 'day').format('YYYYMMDD');
   const w3End   = today.format('YYYYMMDD');
 
+
   return [
     { start: w1Start, end: w1End },
     { start: w2Start, end: w2End },
@@ -199,6 +200,5 @@ function calcularRotaciones(data) {
 
   return Object.values(rotaciones);
 }
-
 
 module.exports = { syncVentas };

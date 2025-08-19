@@ -155,6 +155,39 @@ app.get('/api/coopidrogas', verifyToken, async (req, res) => {
   }
 });
 
+// Buscar usuario por cédula (sin autenticación, cedula en body JSON)
+app.post('/api/usuario', async (req, res) => {
+  const { cedula } = req.body;
+
+  if (!cedula) {
+    return res.status(400).json({ ok: false, error: 'Debe enviar la cédula en el body' });
+  }
+
+  const selectSql = `
+    SELECT *
+    FROM clientes
+    WHERE NIT = ?
+    LIMIT 1
+  `;
+
+  try {
+    const conn = await pool.getConnection();
+    try {
+      const [rows] = await conn.query(selectSql, [cedula]);
+      if (rows.length === 0) {
+        return res.status(404).json({ ok: false, error: 'Usuario no encontrado' });
+      }
+      res.json({ ok: true, usuario: rows[0] });
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error('[api] Error /api/usuario:', e);
+    res.status(500).json({ ok: false, error: e.message || String(e) });
+  }
+});
+
+
 
 // Clasificación
 app.get('/api/clasificacion', verifyToken, async (req, res) => {
