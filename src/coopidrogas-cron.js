@@ -142,6 +142,7 @@ async function syncCoopidrogas() {
     const PROVEEDOR = String(item.proveedor ?? '').trim();
     const CORRIENTE = toNumber(item.corriente ?? 0);
     const REAL = toNumber(item.real ?? 0);
+    console.log(REAL);
     const BONIFICACION = toNumber(item.bonificacion ?? 0);
     const DISPONIBLE = toNumber(item.disp ?? 0);
     const MAXIMO = toNumber(item.maximoXPedido ?? 0);
