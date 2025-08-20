@@ -176,36 +176,62 @@ async function syncCoopidrogas() {
   }*/
 
   async function saveBatch(conn, rows) {
-  if (!rows.length) return 0;
-  const sql = `
-    INSERT INTO \`${TABLE_NAME}\`
-      (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`, \`precioreal\`, \`bonificacion\`, \`disponible\`, \`maximo\`, \`realant\`, \`disponibleant\`)
-    VALUES ?
-    ON DUPLICATE KEY UPDATE
-      /* 1) Captura SIEMPRE los valores anteriores (pre-update) */
-      \`realant\`       = \`precioreal\`,
-      \`disponibleant\` = \`disponible\`,
+    if (!rows.length) return 0;
+    const sql = `
+      INSERT INTO \`${TABLE_NAME}\`
+        (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`, \`precioreal\`, \`bonificacion\`, \`disponible\`, \`maximo\`)
+      VALUES ?
+      AS new
+      ON DUPLICATE KEY UPDATE
+        /* realant: 1) si cambia precio, guarda el viejo
+                    2) si NO cambia pero quedó desfasado, sincrónízalo
+                    3) si ya está igual, déjalo */
+        \`realant\` = CASE
+            WHEN NOT (new.\`precioreal\` <=> \`precioreal\`) THEN \`precioreal\`
+            WHEN \`realant\` <> \`precioreal\`                 THEN \`precioreal\`
+            ELSE \`realant\`
+        END,
 
-      /* 2) Ahora aplica los valores nuevos */
-      \`descripcion\`   = VALUES(\`descripcion\`),
-      \`ean\`           = VALUES(\`ean\`),
-      \`proveedor\`     = VALUES(\`proveedor\`),
-      \`corriente\`     = VALUES(\`corriente\`),
-      \`precioreal\`    = VALUES(\`precioreal\`),
-      \`bonificacion\`  = VALUES(\`bonificacion\`),
-      \`disponible\`    = VALUES(\`disponible\`),
-      \`maximo\`        = VALUES(\`maximo\`),
-      \`actualizacion\` = NOW()
-  `;
-  const values = rows.map(r => [
-    r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
-    r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO,
-    /* insert inicial de "anteriores" = iguales al valor actual */
-    r.REAL, r.DISPONIBLE
-  ]);
-  await conn.query(sql, [values]);
-  return rows.length;
-}
+        /* disponibleant con la misma idea */
+        \`disponibleant\` = CASE
+            WHEN NOT (new.\`disponible\` <=> \`disponible\`) THEN \`disponible\`
+            WHEN \`disponibleant\` <> \`disponible\`         THEN \`disponible\`
+            ELSE \`disponibleant\`
+        END,
+
+        /* Actualiza columnas sólo si cambian (NULL-safe) */
+        \`descripcion\`   = IF(new.\`descripcion\`  <=> \`descripcion\`,  \`descripcion\`,  new.\`descripcion\`),
+        \`ean\`           = IF(new.\`ean\`          <=> \`ean\`,          \`ean\`,          new.\`ean\`),
+        \`proveedor\`     = IF(new.\`proveedor\`    <=> \`proveedor\`,    \`proveedor\`,    new.\`proveedor\`),
+        \`corriente\`     = IF(new.\`corriente\`    <=> \`corriente\`,    \`corriente\`,    new.\`corriente\`),
+        \`bonificacion\`  = IF(new.\`bonificacion\` <=> \`bonificacion\`, \`bonificacion\`, new.\`bonificacion\`),
+        \`maximo\`        = IF(new.\`maximo\`       <=> \`maximo\`,       \`maximo\`,       new.\`maximo\`),
+        \`precioreal\`    = IF(new.\`precioreal\`   <=> \`precioreal\`,   \`precioreal\`,   new.\`precioreal\`),
+        \`disponible\`    = IF(new.\`disponible\`   <=> \`disponible\`,   \`disponible\`,   new.\`disponible\`),
+
+        /* Timestamp sólo si cambió algo real (precio, stock o demás campos) */
+        \`actualizacion\` = IF(
+          NOT(
+            new.\`descripcion\`  <=> \`descripcion\`  AND
+            new.\`ean\`          <=> \`ean\`          AND
+            new.\`proveedor\`    <=> \`proveedor\`    AND
+            new.\`corriente\`    <=> \`corriente\`    AND
+            new.\`bonificacion\` <=> \`bonificacion\` AND
+            new.\`maximo\`       <=> \`maximo\`       AND
+            new.\`precioreal\`   <=> \`precioreal\`   AND
+            new.\`disponible\`   <=> \`disponible\`
+          ),
+          NOW(), \`actualizacion\`
+        )
+    `;
+    const values = rows.map(r => [
+      r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
+      r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO
+    ]);
+    await conn.query(sql, [values]);
+    return rows.length;
+  }
+
 
 
   // ---------- Flujo principal ----------
