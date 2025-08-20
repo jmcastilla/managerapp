@@ -335,7 +335,7 @@ async function syncCoopidrogas() {
     let saved = 0;
     for (let i = 0; i < rowsToSave.length; i += BATCH) {
       const chunk = rowsToSave.slice(i, i + BATCH);
-      await saveBatch(conn, chunk);
+      //await saveBatch(conn, chunk);
       saved += chunk.length;
       console.log(`[coopidrogas] Upsert batch -> ${saved}/${rowsToSave.length}`);
     }
