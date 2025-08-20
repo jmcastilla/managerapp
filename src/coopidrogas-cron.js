@@ -406,4 +406,4 @@ syncCoopidrogas()
   .catch(e => console.error('[coopidrogas] Error en ejecución inicial:', e && (e.stack || e.message || e)));
 
 // Minutos 20 y 50 de cada hora
-cron.schedule('20,50 * * * *', syncCoopidrogas);
+cron.schedule('5,25,45 * * * *', syncCoopidrogas);
