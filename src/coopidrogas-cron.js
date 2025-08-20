@@ -150,7 +150,7 @@ async function syncCoopidrogas() {
     return { SKU, DESCRIPCION, EAN, PROVEEDOR, CORRIENTE, REAL, BONIFICACION, DISPONIBLE, MAXIMO };
   }
 
-  async function saveBatch(conn, rows) {
+  /*async function saveBatch(conn, rows) {
     if (!rows.length) return 0;
     const sql = `
       INSERT INTO \`${TABLE_NAME}\`
@@ -173,7 +173,52 @@ async function syncCoopidrogas() {
     ]);
     await conn.query(sql, [values]);
     return rows.length;
-  }
+  }*/
+
+  async function saveBatch(conn, rows) {
+  if (!rows.length) return 0;
+  const sql = `
+    INSERT INTO \`${TABLE_NAME}\`
+      (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`, \`precioreal\`, \`bonificacion\`, \`disponible\`, \`maximo\`)
+    VALUES ?
+    ON DUPLICATE KEY UPDATE
+      /* Guarda los “anteriores” solo si cambian (NULL-safe) */
+      \`realant\`       = IF(VALUES(\`precioreal\`) <=> \`precioreal\`,  \`realant\`,      \`precioreal\`),
+      \`disponibleant\` = IF(VALUES(\`disponible\`)  <=> \`disponible\`,   \`disponibleant\`, \`disponible\`),
+
+      /* Actualiza solo si cambia (evita UPDATE vacío y que dispare el trigger de gratis) */
+      \`descripcion\`   = IF(VALUES(\`descripcion\`)  <=> \`descripcion\`,  \`descripcion\`,  VALUES(\`descripcion\`)),
+      \`ean\`           = IF(VALUES(\`ean\`)          <=> \`ean\`,          \`ean\`,          VALUES(\`ean\`)),
+      \`proveedor\`     = IF(VALUES(\`proveedor\`)    <=> \`proveedor\`,    \`proveedor\`,    VALUES(\`proveedor\`)),
+      \`corriente\`     = IF(VALUES(\`corriente\`)    <=> \`corriente\`,    \`corriente\`,    VALUES(\`corriente\`)),
+      \`bonificacion\`  = IF(VALUES(\`bonificacion\`) <=> \`bonificacion\`, \`bonificacion\`, VALUES(\`bonificacion\`)),
+      \`maximo\`        = IF(VALUES(\`maximo\`)       <=> \`maximo\`,       \`maximo\`,       VALUES(\`maximo\`)),
+      \`precioreal\`    = IF(VALUES(\`precioreal\`)   <=> \`precioreal\`,   \`precioreal\`,   VALUES(\`precioreal\`)),
+      \`disponible\`    = IF(VALUES(\`disponible\`)   <=> \`disponible\`,   \`disponible\`,   VALUES(\`disponible\`)),
+
+      /* Marca tiempo solo si cambió algo */
+      \`actualizacion\` = IF(
+        NOT(
+          VALUES(\`descripcion\`)  <=> \`descripcion\`  AND
+          VALUES(\`ean\`)          <=> \`ean\`          AND
+          VALUES(\`proveedor\`)    <=> \`proveedor\`    AND
+          VALUES(\`corriente\`)    <=> \`corriente\`    AND
+          VALUES(\`bonificacion\`) <=> \`bonificacion\` AND
+          VALUES(\`maximo\`)       <=> \`maximo\`       AND
+          VALUES(\`precioreal\`)   <=> \`precioreal\`   AND
+          VALUES(\`disponible\`)   <=> \`disponible\`
+        ),
+        NOW(), \`actualizacion\`
+      )
+  `;
+  const values = rows.map(r => [
+    r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
+    r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO
+  ]);
+  await conn.query(sql, [values]);
+  return rows.length;
+}
+
 
   // ---------- Flujo principal ----------
   try {
