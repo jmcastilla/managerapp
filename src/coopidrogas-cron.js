@@ -138,7 +138,8 @@ async function syncCoopidrogas() {
   function normalizeItem(item) {
     const SKU = String(item.material ?? '').trim();
     const DESCRIPCION = String(item.producto ?? '').trim();
-    const EAN = String(item.codigoBarras ?? '').trim();
+    theEAN = String(item.codigoBarras ?? '').trim();
+    const EAN = theEAN; // mantener nombre esperado
     const PROVEEDOR = String(item.proveedor ?? '').trim();
     const CORRIENTE = toNumber(item.corriente ?? 0);
     const REAL = Math.round(toNumber(item.real ?? 0));   // precios SIN centavos → entero
@@ -204,6 +205,37 @@ async function syncCoopidrogas() {
 
     await conn.query(sql, [values]);
     return rows.length;
+  }
+
+  // Crea una tabla temporal con los SKUs de esta corrida y marca como agotados los que no llegaron
+  async function markMissingAsOutOfStock(conn, skus) {
+    if (!skus.length) return;
+
+    // 1) Tabla temporal con los SKUs recibidos
+    await conn.query('CREATE TEMPORARY TABLE tmp_coop_skus (sku VARCHAR(64) PRIMARY KEY) ENGINE=Memory');
+
+    // 2) Insertar SKUs en lotes
+    const INSERT_BATCH = 1000;
+    for (let i = 0; i < skus.length; i += INSERT_BATCH) {
+      const part = skus.slice(i, i + INSERT_BATCH).map(s => [s]);
+      await conn.query('INSERT INTO tmp_coop_skus (sku) VALUES ?', [part]);
+    }
+
+    // 3) Marcar como agotados los que no llegaron (sin tocar precioreal)
+    const updateSql = `
+      UPDATE \`${TABLE_NAME}\` c
+      LEFT JOIN tmp_coop_skus t ON t.sku = c.sku
+      SET
+        c.disponibleant = c.disponible,  -- guarda la cantidad previa
+        c.disponible    = 0,             -- agotado
+        c.actualizacion = NOW()
+      WHERE t.sku IS NULL
+        AND c.disponible <> 0
+    `;
+    await conn.query(updateSql);
+
+    // 4) (opcional) limpiar temp (se elimina al cerrar conexión igual)
+    await conn.query('DROP TEMPORARY TABLE IF EXISTS tmp_coop_skus');
   }
 
   // ---------- Flujo principal ----------
@@ -313,9 +345,7 @@ async function syncCoopidrogas() {
 
     // --- Dedup por SKU (por seguridad ante repaginación inestable)
     const bySku = new Map();
-    for (const n of all) {
-      bySku.set(n.SKU, n); // última aparición gana
-    }
+    for (const n of all) bySku.set(n.SKU, n); // última aparición gana
     const rowsToSave = Array.from(bySku.values());
     console.log(`[coopidrogas] Únicos por SKU: ${rowsToSave.length} (de ${all.length})`);
 
@@ -330,6 +360,7 @@ async function syncCoopidrogas() {
       connectTimeout: 15000,
     });
 
+    // 1) Guardar/actualizar lo que llegó (con realant/disponibleant previos)
     let saved = 0;
     for (let i = 0; i < rowsToSave.length; i += BATCH) {
       const chunk = rowsToSave.slice(i, i + BATCH);
@@ -337,6 +368,11 @@ async function syncCoopidrogas() {
       saved += chunk.length;
       console.log(`[coopidrogas] Upsert batch -> ${saved}/${rowsToSave.length}`);
     }
+
+    // 2) Marcar como agotados los que NO llegaron (disponible = 0, mantener precioreal)
+    const incomingSkus = rowsToSave.map(r => r.SKU);
+    await markMissingAsOutOfStock(conn, incomingSkus);
+
     await conn.end();
     console.log(`[coopidrogas] Sincronización finalizada @ ${new Date().toISOString()}`);
   } catch (e) {
