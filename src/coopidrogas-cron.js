@@ -179,16 +179,16 @@ async function syncCoopidrogas() {
   if (!rows.length) return 0;
   const sql = `
     INSERT INTO \`${TABLE_NAME}\`
-      (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`, \`precioreal\`, \`bonificacion\`, \`disponible\`, \`maximo\`)
+      (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`,
+       \`precioreal\`, \`bonificacion\`, \`disponible\`, \`maximo\`,
+       \`realant\`, \`disponibleant\`)
     VALUES ?
     ON DUPLICATE KEY UPDATE
-      /* Sincroniza “anteriores”:
-         - si cambia, guarda el viejo
-         - si NO cambia pero quedó desfasado, ponlo igual al actual
-         - si ya está igual, no lo toques */
+      /* --- 1) Captura el valor anterior si hay cambio,
+               o sincroniza si quedó desfasado (orden L→R importa) --- */
       \`realant\` = CASE
-        WHEN NOT (VALUES(\`precioreal\`) <=> \`precioreal\`) THEN \`precioreal\`
-        WHEN \`realant\` <> \`precioreal\`                     THEN \`precioreal\`
+        WHEN NOT (VALUES(\`precioreal\`) <=> \`precioreal\`) THEN \`precioreal\`   -- cambió: guarda el precio viejo
+        WHEN \`realant\` <> \`precioreal\`                     THEN \`precioreal\`   -- no cambió: iguala si estaba distinto
         ELSE \`realant\`
       END,
       \`disponibleant\` = CASE
@@ -197,38 +197,27 @@ async function syncCoopidrogas() {
         ELSE \`disponibleant\`
       END,
 
-      /* Actualiza solo si cambia (NULL-safe) */
-      \`descripcion\`   = IF(VALUES(\`descripcion\`)  <=> \`descripcion\`,  \`descripcion\`,  VALUES(\`descripcion\`)),
-      \`ean\`           = IF(VALUES(\`ean\`)          <=> \`ean\`,          \`ean\`,          VALUES(\`ean\`)),
-      \`proveedor\`     = IF(VALUES(\`proveedor\`)    <=> \`proveedor\`,    \`proveedor\`,    VALUES(\`proveedor\`)),
-      \`corriente\`     = IF(VALUES(\`corriente\`)    <=> \`corriente\`,    \`corriente\`,    VALUES(\`corriente\`)),
-      \`bonificacion\`  = IF(VALUES(\`bonificacion\`)<=> \`bonificacion\`, \`bonificacion\`, VALUES(\`bonificacion\`)),
-      \`maximo\`        = IF(VALUES(\`maximo\`)       <=> \`maximo\`,       \`maximo\`,       VALUES(\`maximo\`)),
-      \`precioreal\`    = IF(VALUES(\`precioreal\`)   <=> \`precioreal\`,   \`precioreal\`,   VALUES(\`precioreal\`)),
-      \`disponible\`    = IF(VALUES(\`disponible\`)   <=> \`disponible\`,   \`disponible\`,   VALUES(\`disponible\`)),
-
-      /* Marca tiempo solo si hubo algún cambio real */
-      \`actualizacion\` = IF(
-        NOT(
-          VALUES(\`descripcion\`)  <=> \`descripcion\`  AND
-          VALUES(\`ean\`)          <=> \`ean\`          AND
-          VALUES(\`proveedor\`)    <=> \`proveedor\`    AND
-          VALUES(\`corriente\`)    <=> \`corriente\`    AND
-          VALUES(\`bonificacion\`) <=> \`bonificacion\` AND
-          VALUES(\`maximo\`)       <=> \`maximo\`       AND
-          VALUES(\`precioreal\`)   <=> \`precioreal\`   AND
-          VALUES(\`disponible\`)   <=> \`disponible\`
-        ),
-        NOW(), \`actualizacion\`
-      )
+      /* --- 2) Ahora aplica los valores nuevos --- */
+      \`descripcion\`   = VALUES(\`descripcion\`),
+      \`ean\`           = VALUES(\`ean\`),
+      \`proveedor\`     = VALUES(\`proveedor\`),
+      \`corriente\`     = VALUES(\`corriente\`),
+      \`precioreal\`    = VALUES(\`precioreal\`),
+      \`bonificacion\`  = VALUES(\`bonificacion\`),
+      \`disponible\`    = VALUES(\`disponible\`),
+      \`maximo\`        = VALUES(\`maximo\`),
+      \`actualizacion\` = NOW()
   `;
   const values = rows.map(r => [
     r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
-    r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO
+    r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO,
+    // INSERT inicial: "anteriores" = valores actuales (para que no queden desfasados en la 2ª corrida)
+    r.REAL, r.DISPONIBLE
   ]);
   await conn.query(sql, [values]);
   return rows.length;
 }
+
 
 
   // ---------- Flujo principal ----------
