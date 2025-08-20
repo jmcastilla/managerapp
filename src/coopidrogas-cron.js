@@ -141,7 +141,7 @@ async function syncCoopidrogas() {
     const EAN = String(item.codigoBarras ?? '').trim();
     const PROVEEDOR = String(item.proveedor ?? '').trim();
     const CORRIENTE = toNumber(item.corriente ?? 0);
-    const REAL = Math.round(toNumber(item.real ?? 0));
+    const REAL = Math.round(toNumber(item.real ?? 0));   // precios SIN centavos → entero
     const BONIFICACION = toNumber(item.bonificacion ?? 0);
     const DISPONIBLE = toNumber(item.disp ?? 0);
     const MAXIMO = toNumber(item.maximoXPedido ?? 0);
@@ -150,75 +150,61 @@ async function syncCoopidrogas() {
     return { SKU, DESCRIPCION, EAN, PROVEEDOR, CORRIENTE, REAL, BONIFICACION, DISPONIBLE, MAXIMO };
   }
 
-  /*async function saveBatch(conn, rows) {
+  // --- UPSERT con SELECT previo de valores antiguos (realant/disponibleant)
+  async function saveBatch(conn, rows) {
     if (!rows.length) return 0;
+
+    // SKUs únicos del batch
+    const skus = Array.from(new Set(rows.map(r => r.SKU)));
+
+    // 1) SELECT de valores previos (precio/cantidad actuales en tabla)
+    const [prevRows] = await conn.query(
+      `SELECT sku, precioreal AS prevPrecio, disponible AS prevDisp
+       FROM \`${TABLE_NAME}\`
+       WHERE sku IN (?)`,
+      [skus]
+    );
+    const prevMap = new Map(prevRows.map(r => [String(r.sku), {
+      prevPrecio: Number(r.prevPrecio),
+      prevDisp: Number(r.prevDisp),
+    }]));
+
+    // 2) UPSERT pasando realant/disponibleant con esos previos
     const sql = `
       INSERT INTO \`${TABLE_NAME}\`
-        (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`, \`precioreal\`, \`bonificacion\`, \`disponible\`, \`maximo\`)
+        (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`,
+         \`precioreal\`, \`bonificacion\`, \`disponible\`, \`maximo\`,
+         \`realant\`, \`disponibleant\`)
       VALUES ?
       ON DUPLICATE KEY UPDATE
-        \`descripcion\` = VALUES(\`descripcion\`),
-        \`ean\` = VALUES(\`ean\`),
-        \`proveedor\` = VALUES(\`proveedor\`),
-        \`corriente\` = VALUES(\`corriente\`),
-        \`precioreal\` = VALUES(\`precioreal\`),
-        \`bonificacion\` = VALUES(\`bonificacion\`),
-        \`disponible\` = VALUES(\`disponible\`),
-        \`maximo\` = VALUES(\`maximo\`),
+        \`realant\`       = VALUES(\`realant\`),
+        \`disponibleant\` = VALUES(\`disponibleant\`),
+
+        \`descripcion\`   = VALUES(\`descripcion\`),
+        \`ean\`           = VALUES(\`ean\`),
+        \`proveedor\`     = VALUES(\`proveedor\`),
+        \`corriente\`     = VALUES(\`corriente\`),
+        \`precioreal\`    = VALUES(\`precioreal\`),
+        \`bonificacion\`  = VALUES(\`bonificacion\`),
+        \`disponible\`    = VALUES(\`disponible\`),
+        \`maximo\`        = VALUES(\`maximo\`),
         \`actualizacion\` = NOW()
     `;
-    const values = rows.map(r => [
-      r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
-      r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO
-    ]);
+
+    const values = rows.map(r => {
+      const prev = prevMap.get(r.SKU);
+      const realant = prev ? prev.prevPrecio : r.REAL;        // si no existe, arranca sincronizado
+      const dispant = prev ? prev.prevDisp   : r.DISPONIBLE;  // idem
+      return [
+        r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
+        r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO,
+        realant, dispant
+      ];
+    });
+
     await conn.query(sql, [values]);
     return rows.length;
-  }*/
-
-  async function saveBatch(conn, rows) {
-  if (!rows.length) return 0;
-  const sql = `
-    INSERT INTO \`${TABLE_NAME}\`
-      (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`,
-       \`precioreal\`, \`bonificacion\`, \`disponible\`, \`maximo\`,
-       \`realant\`, \`disponibleant\`)
-    VALUES ?
-    ON DUPLICATE KEY UPDATE
-      /* --- 1) Captura el valor anterior si hay cambio,
-               o sincroniza si quedó desfasado (orden L→R importa) --- */
-      \`realant\` = CASE
-        WHEN NOT (VALUES(\`precioreal\`) <=> \`precioreal\`) THEN \`precioreal\`   -- cambió: guarda el precio viejo
-        WHEN \`realant\` <> \`precioreal\`                     THEN \`precioreal\`   -- no cambió: iguala si estaba distinto
-        ELSE \`realant\`
-      END,
-      \`disponibleant\` = CASE
-        WHEN NOT (VALUES(\`disponible\`) <=> \`disponible\`) THEN \`disponible\`
-        WHEN \`disponibleant\` <> \`disponible\`             THEN \`disponible\`
-        ELSE \`disponibleant\`
-      END,
-
-      /* --- 2) Ahora aplica los valores nuevos --- */
-      \`descripcion\`   = VALUES(\`descripcion\`),
-      \`ean\`           = VALUES(\`ean\`),
-      \`proveedor\`     = VALUES(\`proveedor\`),
-      \`corriente\`     = VALUES(\`corriente\`),
-      \`precioreal\`    = VALUES(\`precioreal\`),
-      \`bonificacion\`  = VALUES(\`bonificacion\`),
-      \`disponible\`    = VALUES(\`disponible\`),
-      \`maximo\`        = VALUES(\`maximo\`),
-      \`actualizacion\` = NOW()
-  `;
-  const values = rows.map(r => [
-    r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
-    r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO,
-    // INSERT inicial: "anteriores" = valores actuales (para que no queden desfasados en la 2ª corrida)
-    r.REAL, r.DISPONIBLE
-  ]);
-  await conn.query(sql, [values]);
-  return rows.length;
-}
-
-
+  }
 
   // ---------- Flujo principal ----------
   try {
@@ -325,6 +311,14 @@ async function syncCoopidrogas() {
 
     console.log(`[coopidrogas] Total normalizados: ${all.length}`);
 
+    // --- Dedup por SKU (por seguridad ante repaginación inestable)
+    const bySku = new Map();
+    for (const n of all) {
+      bySku.set(n.SKU, n); // última aparición gana
+    }
+    const rowsToSave = Array.from(bySku.values());
+    console.log(`[coopidrogas] Únicos por SKU: ${rowsToSave.length} (de ${all.length})`);
+
     // DB
     const conn = await mysql.createConnection({
       host: (process.env.DB_HOST || '').trim(),
@@ -337,11 +331,11 @@ async function syncCoopidrogas() {
     });
 
     let saved = 0;
-    for (let i = 0; i < all.length; i += BATCH) {
-      const chunk = all.slice(i, i + BATCH);
+    for (let i = 0; i < rowsToSave.length; i += BATCH) {
+      const chunk = rowsToSave.slice(i, i + BATCH);
       await saveBatch(conn, chunk);
       saved += chunk.length;
-      console.log(`[coopidrogas] Upsert batch -> ${saved}/${all.length}`);
+      console.log(`[coopidrogas] Upsert batch -> ${saved}/${rowsToSave.length}`);
     }
     await conn.end();
     console.log(`[coopidrogas] Sincronización finalizada @ ${new Date().toISOString()}`);
