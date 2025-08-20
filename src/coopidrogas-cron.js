@@ -138,11 +138,10 @@ async function syncCoopidrogas() {
   function normalizeItem(item) {
     const SKU = String(item.material ?? '').trim();
     const DESCRIPCION = String(item.producto ?? '').trim();
-    theEAN = String(item.codigoBarras ?? '').trim();
-    const EAN = theEAN; // mantener nombre esperado
+    const EAN = String(item.codigoBarras ?? '').trim(); // corregido
     const PROVEEDOR = String(item.proveedor ?? '').trim();
     const CORRIENTE = toNumber(item.corriente ?? 0);
-    const REAL = Math.round(toNumber(item.real ?? 0));   // precios SIN centavos → entero
+    const REAL = Math.round(toNumber(item.real ?? 0));   // sin centavos → entero
     const BONIFICACION = toNumber(item.bonificacion ?? 0);
     const DISPONIBLE = toNumber(item.disp ?? 0);
     const MAXIMO = toNumber(item.maximoXPedido ?? 0);
@@ -151,26 +150,11 @@ async function syncCoopidrogas() {
     return { SKU, DESCRIPCION, EAN, PROVEEDOR, CORRIENTE, REAL, BONIFICACION, DISPONIBLE, MAXIMO };
   }
 
-  // --- UPSERT con SELECT previo de valores antiguos (realant/disponibleant)
+  // --- UPSERT: en INSERT ponemos realant/disponibleant = valores nuevos (para SKUs nuevos)
+  //              en UPDATE NO tocamos realant/disponibleant (ya se “fotografiaron” globalmente antes)
   async function saveBatch(conn, rows) {
     if (!rows.length) return 0;
 
-    // SKUs únicos del batch
-    const skus = Array.from(new Set(rows.map(r => r.SKU)));
-
-    // 1) SELECT de valores previos (precio/cantidad actuales en tabla)
-    const [prevRows] = await conn.query(
-      `SELECT sku, precioreal AS prevPrecio, disponible AS prevDisp
-       FROM \`${TABLE_NAME}\`
-       WHERE sku IN (?)`,
-      [skus]
-    );
-    const prevMap = new Map(prevRows.map(r => [String(r.sku), {
-      prevPrecio: Number(r.prevPrecio),
-      prevDisp: Number(r.prevDisp),
-    }]));
-
-    // 2) UPSERT pasando realant/disponibleant con esos previos
     const sql = `
       INSERT INTO \`${TABLE_NAME}\`
         (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`,
@@ -178,9 +162,6 @@ async function syncCoopidrogas() {
          \`realant\`, \`disponibleant\`)
       VALUES ?
       ON DUPLICATE KEY UPDATE
-        \`realant\`       = VALUES(\`realant\`),
-        \`disponibleant\` = VALUES(\`disponibleant\`),
-
         \`descripcion\`   = VALUES(\`descripcion\`),
         \`ean\`           = VALUES(\`ean\`),
         \`proveedor\`     = VALUES(\`proveedor\`),
@@ -190,51 +171,44 @@ async function syncCoopidrogas() {
         \`disponible\`    = VALUES(\`disponible\`),
         \`maximo\`        = VALUES(\`maximo\`),
         \`actualizacion\` = NOW()
+      -- OJO: NO tocamos realant/disponibleant aquí
     `;
 
-    const values = rows.map(r => {
-      const prev = prevMap.get(r.SKU);
-      const realant = prev ? prev.prevPrecio : r.REAL;        // si no existe, arranca sincronizado
-      const dispant = prev ? prev.prevDisp   : r.DISPONIBLE;  // idem
-      return [
-        r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
-        r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO,
-        realant, dispant
-      ];
-    });
+    const values = rows.map(r => [
+      r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
+      r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO,
+      // Para INSERT (nuevos): arrancan sincronizados
+      r.REAL, r.DISPONIBLE
+    ]);
 
     await conn.query(sql, [values]);
     return rows.length;
   }
 
-  // Crea una tabla temporal con los SKUs de esta corrida y marca como agotados los que no llegaron
+  // Marcamos como agotados lo que NO llegó en esta corrida (disponible=0, preserva precioreal)
   async function markMissingAsOutOfStock(conn, skus) {
     if (!skus.length) return;
 
-    // 1) Tabla temporal con los SKUs recibidos
     await conn.query('CREATE TEMPORARY TABLE tmp_coop_skus (sku VARCHAR(64) PRIMARY KEY) ENGINE=Memory');
 
-    // 2) Insertar SKUs en lotes
     const INSERT_BATCH = 1000;
     for (let i = 0; i < skus.length; i += INSERT_BATCH) {
       const part = skus.slice(i, i + INSERT_BATCH).map(s => [s]);
       await conn.query('INSERT INTO tmp_coop_skus (sku) VALUES ?', [part]);
     }
 
-    // 3) Marcar como agotados los que no llegaron (sin tocar precioreal)
     const updateSql = `
       UPDATE \`${TABLE_NAME}\` c
       LEFT JOIN tmp_coop_skus t ON t.sku = c.sku
       SET
-        c.disponibleant = c.disponible,  -- guarda la cantidad previa
-        c.disponible    = 0,             -- agotado
+        c.disponibleant = c.disponible,
+        c.disponible    = 0,
         c.actualizacion = NOW()
       WHERE t.sku IS NULL
         AND c.disponible <> 0
     `;
     await conn.query(updateSql);
 
-    // 4) (opcional) limpiar temp (se elimina al cerrar conexión igual)
     await conn.query('DROP TEMPORARY TABLE IF EXISTS tmp_coop_skus');
   }
 
@@ -262,12 +236,8 @@ async function syncCoopidrogas() {
       console.log('[coopidrogas] DNS resolve error:', e && (e.message || e));
     }
 
-    // Smoke test (HEAD /) — distingue problema de red vs app
-    await client.request({
-      method: 'HEAD',
-      url: '/',
-      validateStatus: s => s >= 200 && s < 500,
-    });
+    // Smoke test (HEAD /)
+    await client.request({ method: 'HEAD', url: '/', validateStatus: s => s >= 200 && s < 500 });
 
     // Login (espera 302)
     await client.post(
@@ -277,10 +247,7 @@ async function syncCoopidrogas() {
         _password: process.env.CDP_PASS,
         seccion: '',
       }).toString(),
-      {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        validateStatus: s => s === 302,
-      }
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, validateStatus: s => s === 302 }
     );
     console.log('[coopidrogas] Login OK');
 
@@ -315,9 +282,7 @@ async function syncCoopidrogas() {
       if (page > 1 && Number.isFinite(totalPages) && page > totalPages) break;
 
       const url = `/drogueria/productosJson/1?${baseParams}&page=${page}`;
-
-      // pequeño delay con jitter para no parecer scraper agresivo
-      await sleep(300 + Math.floor(Math.random() * 200));
+      await sleep(300 + Math.floor(Math.random() * 200)); // jitter
 
       const rp = await client.get(url, {
         headers: {
@@ -330,10 +295,7 @@ async function syncCoopidrogas() {
 
       const payload = typeof rp.data === 'string' ? JSON.parse(rp.data) : rp.data;
       const items = extractProducts(payload, arrayPath);
-      if (!items.length) {
-        console.log(`[coopidrogas] Página ${page} sin items, deteniendo.`);
-        break;
-      }
+      if (!items.length) { console.log(`[coopidrogas] Página ${page} sin items, deteniendo.`); break; }
       items.forEach(it => { const n = normalizeItem(it); if (n) all.push(n); });
       console.log(`[coopidrogas] Página ${page} OK, items: ${items.length}, acumulado: ${all.length}`);
 
@@ -360,7 +322,16 @@ async function syncCoopidrogas() {
       connectTimeout: 15000,
     });
 
-    // 1) Guardar/actualizar lo que llegó (con realant/disponibleant previos)
+    // --- SNAPSHOT GLOBAL (lo que pides): actualizar TODO lo que está en BD
+    //      antes de aplicar la importación, para guardar los "anteriores".
+    console.log('[coopidrogas] Snapshot global de anteriores (realant/disponibleant)...');
+    await conn.query(
+      `UPDATE \`${TABLE_NAME}\`
+       SET realant = precioreal,
+           disponibleant = disponible`
+    );
+
+    // 1) Guardar/actualizar lo que llegó (sin tocar realant/disponibleant en UPDATE)
     let saved = 0;
     for (let i = 0; i < rowsToSave.length; i += BATCH) {
       const chunk = rowsToSave.slice(i, i + BATCH);
