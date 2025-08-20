@@ -176,62 +176,59 @@ async function syncCoopidrogas() {
   }*/
 
   async function saveBatch(conn, rows) {
-    if (!rows.length) return 0;
-    const sql = `
-      INSERT INTO \`${TABLE_NAME}\`
-        (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`, \`precioreal\`, \`bonificacion\`, \`disponible\`, \`maximo\`)
-      VALUES ?
-      AS new
-      ON DUPLICATE KEY UPDATE
-        /* realant: 1) si cambia precio, guarda el viejo
-                    2) si NO cambia pero quedó desfasado, sincrónízalo
-                    3) si ya está igual, déjalo */
-        \`realant\` = CASE
-            WHEN NOT (new.\`precioreal\` <=> \`precioreal\`) THEN \`precioreal\`
-            WHEN \`realant\` <> \`precioreal\`                 THEN \`precioreal\`
-            ELSE \`realant\`
-        END,
+  if (!rows.length) return 0;
+  const sql = `
+    INSERT INTO \`${TABLE_NAME}\`
+      (\`sku\`, \`descripcion\`, \`ean\`, \`proveedor\`, \`corriente\`, \`precioreal\`, \`bonificacion\`, \`disponible\`, \`maximo\`)
+    VALUES ?
+    ON DUPLICATE KEY UPDATE
+      /* Sincroniza “anteriores”:
+         - si cambia, guarda el viejo
+         - si NO cambia pero quedó desfasado, ponlo igual al actual
+         - si ya está igual, no lo toques */
+      \`realant\` = CASE
+        WHEN NOT (VALUES(\`precioreal\`) <=> \`precioreal\`) THEN \`precioreal\`
+        WHEN \`realant\` <> \`precioreal\`                     THEN \`precioreal\`
+        ELSE \`realant\`
+      END,
+      \`disponibleant\` = CASE
+        WHEN NOT (VALUES(\`disponible\`) <=> \`disponible\`) THEN \`disponible\`
+        WHEN \`disponibleant\` <> \`disponible\`             THEN \`disponible\`
+        ELSE \`disponibleant\`
+      END,
 
-        /* disponibleant con la misma idea */
-        \`disponibleant\` = CASE
-            WHEN NOT (new.\`disponible\` <=> \`disponible\`) THEN \`disponible\`
-            WHEN \`disponibleant\` <> \`disponible\`         THEN \`disponible\`
-            ELSE \`disponibleant\`
-        END,
+      /* Actualiza solo si cambia (NULL-safe) */
+      \`descripcion\`   = IF(VALUES(\`descripcion\`)  <=> \`descripcion\`,  \`descripcion\`,  VALUES(\`descripcion\`)),
+      \`ean\`           = IF(VALUES(\`ean\`)          <=> \`ean\`,          \`ean\`,          VALUES(\`ean\`)),
+      \`proveedor\`     = IF(VALUES(\`proveedor\`)    <=> \`proveedor\`,    \`proveedor\`,    VALUES(\`proveedor\`)),
+      \`corriente\`     = IF(VALUES(\`corriente\`)    <=> \`corriente\`,    \`corriente\`,    VALUES(\`corriente\`)),
+      \`bonificacion\`  = IF(VALUES(\`bonificacion\`)<=> \`bonificacion\`, \`bonificacion\`, VALUES(\`bonificacion\`)),
+      \`maximo\`        = IF(VALUES(\`maximo\`)       <=> \`maximo\`,       \`maximo\`,       VALUES(\`maximo\`)),
+      \`precioreal\`    = IF(VALUES(\`precioreal\`)   <=> \`precioreal\`,   \`precioreal\`,   VALUES(\`precioreal\`)),
+      \`disponible\`    = IF(VALUES(\`disponible\`)   <=> \`disponible\`,   \`disponible\`,   VALUES(\`disponible\`)),
 
-        /* Actualiza columnas sólo si cambian (NULL-safe) */
-        \`descripcion\`   = IF(new.\`descripcion\`  <=> \`descripcion\`,  \`descripcion\`,  new.\`descripcion\`),
-        \`ean\`           = IF(new.\`ean\`          <=> \`ean\`,          \`ean\`,          new.\`ean\`),
-        \`proveedor\`     = IF(new.\`proveedor\`    <=> \`proveedor\`,    \`proveedor\`,    new.\`proveedor\`),
-        \`corriente\`     = IF(new.\`corriente\`    <=> \`corriente\`,    \`corriente\`,    new.\`corriente\`),
-        \`bonificacion\`  = IF(new.\`bonificacion\` <=> \`bonificacion\`, \`bonificacion\`, new.\`bonificacion\`),
-        \`maximo\`        = IF(new.\`maximo\`       <=> \`maximo\`,       \`maximo\`,       new.\`maximo\`),
-        \`precioreal\`    = IF(new.\`precioreal\`   <=> \`precioreal\`,   \`precioreal\`,   new.\`precioreal\`),
-        \`disponible\`    = IF(new.\`disponible\`   <=> \`disponible\`,   \`disponible\`,   new.\`disponible\`),
-
-        /* Timestamp sólo si cambió algo real (precio, stock o demás campos) */
-        \`actualizacion\` = IF(
-          NOT(
-            new.\`descripcion\`  <=> \`descripcion\`  AND
-            new.\`ean\`          <=> \`ean\`          AND
-            new.\`proveedor\`    <=> \`proveedor\`    AND
-            new.\`corriente\`    <=> \`corriente\`    AND
-            new.\`bonificacion\` <=> \`bonificacion\` AND
-            new.\`maximo\`       <=> \`maximo\`       AND
-            new.\`precioreal\`   <=> \`precioreal\`   AND
-            new.\`disponible\`   <=> \`disponible\`
-          ),
-          NOW(), \`actualizacion\`
-        )
-    `;
-    const values = rows.map(r => [
-      r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
-      r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO
-    ]);
-    await conn.query(sql, [values]);
-    return rows.length;
-  }
-
+      /* Marca tiempo solo si hubo algún cambio real */
+      \`actualizacion\` = IF(
+        NOT(
+          VALUES(\`descripcion\`)  <=> \`descripcion\`  AND
+          VALUES(\`ean\`)          <=> \`ean\`          AND
+          VALUES(\`proveedor\`)    <=> \`proveedor\`    AND
+          VALUES(\`corriente\`)    <=> \`corriente\`    AND
+          VALUES(\`bonificacion\`) <=> \`bonificacion\` AND
+          VALUES(\`maximo\`)       <=> \`maximo\`       AND
+          VALUES(\`precioreal\`)   <=> \`precioreal\`   AND
+          VALUES(\`disponible\`)   <=> \`disponible\`
+        ),
+        NOW(), \`actualizacion\`
+      )
+  `;
+  const values = rows.map(r => [
+    r.SKU, r.DESCRIPCION, r.EAN, r.PROVEEDOR,
+    r.CORRIENTE, r.REAL, r.BONIFICACION, r.DISPONIBLE, r.MAXIMO
+  ]);
+  await conn.query(sql, [values]);
+  return rows.length;
+}
 
 
   // ---------- Flujo principal ----------
