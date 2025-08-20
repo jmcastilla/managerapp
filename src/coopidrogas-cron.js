@@ -306,10 +306,56 @@ async function syncCoopidrogas() {
     console.log(`[coopidrogas] Total normalizados: ${all.length}`);
 
     // --- Dedup por SKU (por seguridad ante repaginación inestable)
+    // --- Consolidación por SKU (sumar disponible, mínimo precio real)
     const bySku = new Map();
-    for (const n of all) bySku.set(n.SKU, n); // última aparición gana
+
+    // (opcional) métrica de duplicados
+    const seen = new Map();
+
+    for (const n of all) {
+      seen.set(n.SKU, (seen.get(n.SKU) || 0) + 1);
+
+      const cur = bySku.get(n.SKU);
+      if (!cur) {
+        // primera vez que vemos el SKU
+        bySku.set(n.SKU, { ...n });
+      } else {
+        // 1) sumar disponible
+        cur.DISPONIBLE += n.DISPONIBLE;
+
+        // 2) elegir el menor precio real
+        if (n.REAL < cur.REAL) {
+          cur.REAL = n.REAL;
+
+          // cuando cambia el “mejor” (más barato), puedes arrastrar metadatos de esa fila
+          cur.DESCRIPCION = n.DESCRIPCION || cur.DESCRIPCION;
+          cur.EAN         = n.EAN || cur.EAN;
+          cur.PROVEEDOR   = n.PROVEEDOR || cur.PROVEEDOR;
+          cur.CORRIENTE   = n.CORRIENTE || cur.CORRIENTE;
+          cur.BONIFICACION= n.BONIFICACION ?? cur.BONIFICACION;
+          cur.MAXIMO      = n.MAXIMO || cur.MAXIMO;
+        } else {
+          // Ajustes opcionales de agregación:
+          // precio corriente: el menor (suele ser igual)
+          if (typeof n.CORRIENTE === 'number') {
+            cur.CORRIENTE = Math.min(cur.CORRIENTE, n.CORRIENTE);
+          }
+          // bonificación: nos quedamos con la mayor (si te conviene)
+          if (typeof n.BONIFICACION === 'number') {
+            cur.BONIFICACION = Math.max(cur.BONIFICACION, n.BONIFICACION);
+          }
+          // máximo por pedido: la mayor (para no restringir)
+          if (typeof n.MAXIMO === 'number') {
+            cur.MAXIMO = Math.max(cur.MAXIMO, n.MAXIMO);
+          }
+        }
+      }
+    }
+
     const rowsToSave = Array.from(bySku.values());
-    console.log(`[coopidrogas] Únicos por SKU: ${rowsToSave.length} (de ${all.length})`);
+    const dupSkus = [...seen.values()].filter(c => c > 1).length;
+    console.log(`[coopidrogas] SKUs con duplicados: ${dupSkus}. Únicos consolidados: ${rowsToSave.length} (de ${all.length}).`);
+
 
     // DB
     const conn = await mysql.createConnection({
