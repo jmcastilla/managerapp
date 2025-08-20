@@ -335,14 +335,14 @@ async function syncCoopidrogas() {
     let saved = 0;
     for (let i = 0; i < rowsToSave.length; i += BATCH) {
       const chunk = rowsToSave.slice(i, i + BATCH);
-      //await saveBatch(conn, chunk);
+      await saveBatch(conn, chunk);
       saved += chunk.length;
       console.log(`[coopidrogas] Upsert batch -> ${saved}/${rowsToSave.length}`);
     }
 
     // 2) Marcar como agotados los que NO llegaron (disponible = 0, mantener precioreal)
-    const incomingSkus = rowsToSave.map(r => r.SKU);
-    await markMissingAsOutOfStock(conn, incomingSkus);
+    //const incomingSkus = rowsToSave.map(r => r.SKU);
+    //await markMissingAsOutOfStock(conn, incomingSkus);
 
     await conn.end();
     console.log(`[coopidrogas] Sincronización finalizada @ ${new Date().toISOString()}`);
