@@ -4,6 +4,7 @@ const cron = require('node-cron');
 // Importar funciones principales de cada script
 const { ejecutarClasificacionABC } = require('./clasificacion'); // cada 4 horas
 const { runOnce } = require('./enviocorreo'); // cada 2 horas
+const { runOnce2 } = require('./enviocorreointerno'); // cada 2 horas
 const { syncInventario } = require('./inventario');        // cada 30 min
 const { syncProductos } = require('./productos');          // cada 24 horas
 const { syncVentas } = require('./ventas');                // cada 30 min
@@ -33,6 +34,12 @@ cron.schedule('2,32 * * * *', () => {
 cron.schedule('*/5 * * * *', () => {
   console.log(`[cron] Envío de correo`);
   runOnce();
+});
+
+// Envío de correo - cada 5 min
+cron.schedule('*/5 * * * *', () => {
+  console.log(`[cron] Envío de correo`);
+  runOnce2();
 });
 
 // Clasificación ABC - cada 24 horas (2 am)
