@@ -153,5 +153,4 @@ function unificarBodegas(inventario) {
 
   return Object.values(agrupado);
 }
-syncInventario();
 module.exports = { syncInventario };
