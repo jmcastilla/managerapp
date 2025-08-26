@@ -9,7 +9,7 @@ const dayjs = require('dayjs');
 const QUERY_SQL =
     `SELECT a.idalertas, a.sku, p.nombre, a.bod, b.descripcion, a.estado, a.actualizacion FROM manager.alertasinternas as a
     inner join manager.bodegas as b on b.idbodegas = a.bod
-    inner join manager.productos as p on p.sku = a.sku WHERE a.enviado=0 ORDER BY b.descripcion;`;
+    inner join manager.productos as p on p.sku = a.sku WHERE a.enviado=0 and a.estado='PRODUCTO AGOTADO' ORDER BY b.descripcion;`;
 
 const MAX_ROWS_PER_EMAIL = Number(process.env.MAX_ROWS_PER_EMAIL || 2000); // divide en varios correos si hay más filas
 

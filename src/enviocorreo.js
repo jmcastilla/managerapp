@@ -114,7 +114,7 @@ function chunkArray(arr, size) {
 
 async function sendHtmlEmails(rows) {
   const transporter = createTransporter();
-  const toList = (process.env.MAIL_TO || '').split(',').map(s => s.trim()).filter(Boolean);
+  const toList = (process.env.MAIL_TO2 || '').split(',').map(s => s.trim()).filter(Boolean);
   if (!toList.length) throw new Error('Configura MAIL_TO con al menos un destinatario');
 
   const chunks = chunkArray(rows, MAX_ROWS_PER_EMAIL);
