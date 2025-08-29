@@ -307,6 +307,28 @@ app.get('/api/sugerido', verifyToken, async (req, res) => {
   }
 });
 
+// dias de inventario
+app.get('/api/diasinventario', verifyToken, async (req, res) => {
+  const selectSql = `
+  SELECT v.sku, i.nombre, v.bod, i.dias,i.stock, v.rot90, v.rotdia90,
+  CASE WHEN i.stock = 0 THEN 0 WHEN i.stock > 0 AND v.rot90 < 0 THEN 10000 WHEN v.rot90 = 0 AND i.stock>0 THEN 10000 ELSE ROUND(i.stock / v.rotdia90, 0) END AS dias_inventario
+  FROM manager.ventas as v
+  inner join manager.inventarios as i on i.sku=v.sku and i.bod=v.bod limit 1000000;
+  `;
+  try {
+    const conn = await pool.getConnection();
+    try {
+      const [rows] = await conn.query(selectSql);
+      res.json({ ok: true, rows });
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error('[api] Error /api/diasinventario:', e);
+    res.status(500).json({ ok: false, error: e.message || String(e) });
+  }
+});
+
 
 // Healthcheck
 app.get('/api/health', (_req, res) => {

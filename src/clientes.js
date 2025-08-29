@@ -162,5 +162,4 @@ async function syncClientes() {
   }
 }
 
-
 module.exports = { syncClientes };

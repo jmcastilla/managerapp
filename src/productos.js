@@ -46,6 +46,7 @@ async function getproductos(token) {
       Authorization: `Bearer ${token}`
     }
   });
+  console.log(response.data)
   return response.data.data || []; // array de objetos
 }
 
@@ -103,7 +104,6 @@ async function syncProductos() {
     console.error('Error durante sincronización:', err.message);
   }
 }
-
 
 // Ejecutar inmediatamente al iniciar
 module.exports = { syncProductos };
