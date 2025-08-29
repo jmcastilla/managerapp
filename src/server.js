@@ -310,11 +310,11 @@ app.get('/api/sugerido', verifyToken, async (req, res) => {
 // dias de inventario
 app.get('/api/diasinventario', verifyToken, async (req, res) => {
   const selectSql = `
-  SELECT v.sku, i.nombre, p.proveedor, p.linea, v.bod, i.dias,i.stock, v.rot90, v.rotdia90,
-  CASE WHEN i.stock = 0 THEN 0 WHEN i.stock > 0 AND v.rot90 < 0 THEN 10000 WHEN v.rot90 = 0 AND i.stock>0 THEN 10000 ELSE ROUND(i.stock / v.rotdia90, 0) END AS dias_inventario
-  FROM manager.ventas as v
-  inner join manager.inventarios as i on i.sku=v.sku and i.bod=v.bod
-  inner join manager.productos as p on p.sku = v.sku limit 1000000;
+  SELECT i.sku, i.nombre, p.proveedor, p.linea, i.bod, i.dias,i.stock, ifnull(v.rot90,0) as rot90, ifnull(v.rotdia90,0) as rotdia90,
+  CASE WHEN i.stock = 0 THEN 0 WHEN i.stock > 0 AND ifnull(v.rot90,0) < 0 THEN 10000 WHEN ifnull(v.rot90,0) = 0 AND i.stock>0 THEN 10000 ELSE ROUND(i.stock / ifnull(v.rotdia90,0), 0) END AS dias_inventario   
+  FROM manager.inventarios as i
+  left join manager.ventas as v on i.sku=v.sku and i.bod=v.bod
+  inner join manager.productos as p on p.sku = i.sku limit 1000000;
   `;
   try {
     const conn = await pool.getConnection();
