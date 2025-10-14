@@ -144,7 +144,7 @@ async function sendHtmlEmails(rows) {
 }
 
 // =============== ORQUESTA ===============
-async function runOnce() {
+async function runOnce3() {
   const conn = await getConn();
   try {
     const rows = await fetchRows(conn);
@@ -168,4 +168,4 @@ async function runOnce() {
 
 
 // Ejecuta al iniciar
-module.exports = { runOnce };
+module.exports = { runOnce3 };
