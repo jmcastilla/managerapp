@@ -11,4 +11,4 @@ const { syncPrecios } = require('./preciosIA');
 
 
 
-  syncInventario();
+  syncProductos();
