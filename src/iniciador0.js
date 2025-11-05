@@ -24,6 +24,3 @@ cron.schedule('0 1 * * *', () => {
   console.log(`[cron] Productos`);
   syncProductos();
 });
-
-
-syncPrecios();
