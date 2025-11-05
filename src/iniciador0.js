@@ -9,6 +9,18 @@ const { syncPrecios } = require('./preciosIA');
 
 // ================== SCHEDULERS ==================
 
-
-
+// Inventario - cada 30 min
+cron.schedule('*/60 * * * *', () => {
+  console.log(`[cron] precios`);
   syncPrecios();
+});
+
+cron.schedule('*/60 * * * *', () => {
+  console.log(`[cron] inventario`);
+  syncInventario();
+});
+
+cron.schedule('0 1 * * *', () => {
+  console.log(`[cron] Productos`);
+  syncProductos();
+});
