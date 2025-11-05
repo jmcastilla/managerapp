@@ -26,4 +26,4 @@ cron.schedule('0 1 * * *', () => {
 });
 
 
-syncInventario();
+syncPrecios();
