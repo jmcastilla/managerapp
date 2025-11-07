@@ -64,12 +64,13 @@ async function saveToDatabase(items) {
     database: "agenteia"
   });
 
+  console.log(`[${new Date().toISOString()}] Limpiando Base de datos...`);
+  await conn.execute('DELETE FROM inventarios where idinventario>0');
+
   const batchSize = 1000;
   const insertQuery = `
-    INSERT INTO inventarios AS new (sku, bod, stock)
+    INSERT INTO inventarios (sku, bod, stock)
     VALUES ?
-    ON DUPLICATE KEY UPDATE
-      stock = new.stock
   `;
 
   for (let i = 0; i < items.length; i += batchSize) {

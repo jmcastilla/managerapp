@@ -61,7 +61,7 @@ async function saveToDatabase(items) {
   });
 
   console.log(`[${new Date().toISOString()}] Limpiando Base de datos...`);
-  await conn.execute('DELETE FROM precios');
+  await conn.execute('DELETE FROM precios where idprecio>0');
 
   const batchSize = 1000;
   const insertQuery = `
