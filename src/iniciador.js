@@ -56,8 +56,8 @@ cron.schedule('0 2 * * *', () => {
   ejecutarClasificacionABC();
 });
 
-// fac001 - cada 24 horas (10 pm)
-cron.schedule('0 22 * * *', () => {
+// fac001 - cada 24 horas (6 pm)
+cron.schedule('0 6 * * *', () => {
   console.log(`[cron] ventasfactura001`);
   syncVentasHoy();
 });
