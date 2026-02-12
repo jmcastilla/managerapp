@@ -9,6 +9,7 @@ const { runOnce3 } = require('./enviocorreobg'); // cada 2 horas
 const { syncInventario } = require('./inventario');        // cada 30 min
 const { syncProductos } = require('./productos');          // cada 24 horas
 const { syncVentas } = require('./ventas');                // cada 30 min
+const { syncVentasHoy } = require('./ventasFac001');                // cada 30 min
 
 // ================== SCHEDULERS ==================
 
@@ -53,4 +54,10 @@ cron.schedule('*/5 * * * *', () => {
 cron.schedule('0 2 * * *', () => {
   console.log(`[cron] Clasificación ABC`);
   ejecutarClasificacionABC();
+});
+
+// fac001 - cada 24 horas (10 pm)
+cron.schedule('0 22 * * *', () => {
+  console.log(`[cron] ventasfactura001`);
+  syncVentasHoy();
 });
