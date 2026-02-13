@@ -14,9 +14,10 @@ async function getToken() {
   );
 
   const tokenText = response.data;
-  const token = typeof tokenText === 'string' && tokenText.startsWith('Token')
-    ? tokenText.split(' ').pop()
-    : tokenText;
+  const token =
+    typeof tokenText === 'string' && tokenText.startsWith('Token')
+      ? tokenText.split(' ').pop()
+      : tokenText;
 
   return token;
 }
@@ -29,34 +30,38 @@ async function getVenta(token) {
 
   const body = {
     id_solicitud: 6255,
-    service: "BI231C4MLBRKF",
+    service: 'BI231C4MLBRKF',
     appuser: process.env.APPUSER,
     pwd: process.env.APPUSER_PWD,
     company: process.env.COMPANY,
     entity: process.env.ENTITY,
     data: {
-      usmng: "MNGBI",
-      emp: "101",
-      sku: "*",
-      dtbod: "1",
-      bod: "*",
-      suc: "*",
-      cco: "*",
-      tpumd: "1",
+      usmng: 'MNGBI',
+      emp: '101',
+      sku: '*',
+      dtbod: '1',
+      bod: '*',
+      suc: '*',
+      cco: '*',
+      tpumd: '1',
       fecha_inicial: ayer,
-      fecha_final: ayer
-    }
+      fecha_final: ayer,
+    },
   };
 
   const response = await axios.post(process.env.INVENTORY_URL, body, {
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
-    }
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   const raw = response.data?.data || [];
-  console.log(`[${new Date().toISOString()}] getVenta -> registros SIN filtrar: ${Array.isArray(raw) ? raw.length : 0}`);
+  console.log(
+    `[${new Date().toISOString()}] getVenta -> registros SIN filtrar: ${
+      Array.isArray(raw) ? raw.length : 0
+    }`
+  );
 
   return Array.isArray(raw) ? raw : [];
 }
@@ -83,38 +88,51 @@ function normalizeFecha(v) {
 }
 
 function mapVentaToDbRow(item) {
-  const factura = `${item.documento ?? ''}${item.numero ?? ''}`;
+  const factura = `${item.documento ?? ''}${item.numero ?? ''}`.trim();
+
+  // Si factura comienza con D => devolución
+  const isDevolucion = /^D/i.test(factura);
 
   // medico con punto/no-numérico => 0 y "SIN DEFINIR"
   let codMedico = 0;
   let nomMedico = 'SIN DEFINIR';
   if (isOnlyDigits(item.medico)) {
     codMedico = toIntOrZero(item.medico);
-    nomMedico = (item.mednom && String(item.mednom).trim()) ? String(item.mednom).trim() : 'SIN DEFINIR';
+    nomMedico =
+      item.mednom && String(item.mednom).trim()
+        ? String(item.mednom).trim()
+        : 'SIN DEFINIR';
   }
 
+  // cantidad/valor en negativo si es devolución
+  const cantidad = toIntOrZero(item.cant1);
+  const valor = toIntOrZero(item.valor);
+
+  const cantidadFinal = isDevolucion ? -Math.abs(cantidad) : cantidad;
+  const valorFinal = isDevolucion ? -Math.abs(valor) : valor;
+
   return [
-    normalizeFecha(item.fecha),           // fecha
-    toIntOrZero(item.codpunto),           // codpunto
-    factura,                              // factura
-    String(toIntOrZero(item.caja)),       // caja (numérico en string)
-    String(toIntOrZero(item.ccnit)),      // doc_cliente (numérico en string)
-    String(item.cliente ?? '').trim(),    // cliente
-    toIntOrZero(item.ven),                // cod_vendedor
-    String(item.vennom ?? '').trim(),     // vendedor
-    codMedico,                            // cod_medico
-    nomMedico,                            // medico (nombre)
-    String(item.sku ?? ''),  // cod_producto
-    String(item.descripcion ?? '').trim(),// producto
-    toIntOrZero(item.cant1),              // cantidad
-    String(item.und1 ?? '').trim(),       // unidad
-    toIntOrZero(item.valor),              // valor
-    toMysqlDatetime(item.fechora),        // fechahora
-    toIntOrZero(item.codlab),             // cod_laboratorio
-    String(item.laboratorio ?? '').trim(),// laboratorio
-    String(item.fpago ?? '').trim(),      // formapago
-    String(item.email ?? '').trim(),      // email
-    String(item.telefono ?? '').trim()    // telefono
+    normalizeFecha(item.fecha), // fecha
+    toIntOrZero(item.codpunto), // codpunto
+    factura, // factura
+    String(toIntOrZero(item.caja)), // caja (numérico en string)
+    String(toIntOrZero(item.ccnit)), // doc_cliente (numérico en string)
+    String(item.cliente ?? '').trim(), // cliente
+    toIntOrZero(item.ven), // cod_vendedor
+    String(item.vennom ?? '').trim(), // vendedor
+    codMedico, // cod_medico
+    nomMedico, // medico (nombre)
+    String(item.sku ?? ''), // cod_producto
+    String(item.descripcion ?? '').trim(), // producto
+    cantidadFinal, // cantidad (negativa si devolución)
+    String(item.und1 ?? '').trim(), // unidad
+    valorFinal, // valor (negativo si devolución)
+    toMysqlDatetime(item.fechora), // fechahora
+    toIntOrZero(item.codlab), // cod_laboratorio
+    String(item.laboratorio ?? '').trim(), // laboratorio
+    String(item.fpago ?? '').trim(), // formapago
+    String(item.email ?? '').trim(), // email
+    String(item.telefono ?? '').trim(), // telefono
   ];
 }
 
@@ -129,8 +147,6 @@ async function saveVentasToDatabase(items) {
     database: 'manager2',
   });
 
-  const hoyISO = dayjs().format('YYYY-MM-DD');
-
   const insertQuery = `
     INSERT INTO ventas (
       fecha, codpunto, factura, caja, doc_cliente, cliente,
@@ -141,7 +157,9 @@ async function saveVentasToDatabase(items) {
   `;
 
   // DESCARTAR codpunto=0 (y fechas inválidas)
-  const filtradas = items.filter(it => toIntOrZero(it.codpunto) !== 0 && normalizeFecha(it.fecha) !== null);
+  const filtradas = items.filter(
+    (it) => toIntOrZero(it.codpunto) !== 0 && normalizeFecha(it.fecha) !== null
+  );
 
   const batchSize = 1000;
   let inserted = 0;
@@ -165,18 +183,23 @@ async function saveVentasToDatabase(items) {
 // =======================
 async function syncVentasHoy() {
   try {
-    console.log(`[${new Date().toISOString()}] Iniciando sincronización de ventas (HOY)...`);
+    console.log(
+      `[${new Date().toISOString()}] Iniciando sincronización de ventas (HOY)...`
+    );
     const token = await getToken();
 
     const ventas = await getVenta(token);
     console.log(`[${new Date().toISOString()}] Ventas recibidas: ${ventas.length}`);
 
     const res = await saveVentasToDatabase(ventas);
-    console.log(`[${new Date().toISOString()}] OK. Recibidas=${res.received} | Filtradas=${res.kept} | Insertadas=${res.inserted}`);
+    console.log(
+      `[${new Date().toISOString()}] OK. Recibidas=${res.received} | Filtradas=${res.kept} | Insertadas=${res.inserted}`
+    );
   } catch (err) {
-    console.error('Error durante sincronización:', err?.response?.data || err.message);
+    console.error(
+      'Error durante sincronización:',
+      err?.response?.data || err.message
+    );
   }
 }
-
-
 module.exports = { syncVentasHoy, getToken, getVenta };
