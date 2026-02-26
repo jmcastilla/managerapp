@@ -36,7 +36,8 @@ function yyyymmddToMysqlDate(yyyymmdd) {
 // -------------------------
 // Paso 2: Llamar servicio compras (BI2294TNFP9T6)
 // -------------------------
-async function getCompras(token, { fecha_inicial, fecha_final }) {
+async function getCompras(token, { ayer }) {
+  console.log(ayer+" - "+ayer);
   const body = {
     id_solicitud: 6254,
     service: "BI2294TNFP9T6",
@@ -47,8 +48,8 @@ async function getCompras(token, { fecha_inicial, fecha_final }) {
     data: {
       usmng: "MNGBI",
       emp: "101",
-      fecha_inicial: String(fecha_inicial), // "20240701"
-      fecha_final: String(fecha_final)      // "20240701"
+      fecha_inicial: String(ayer), // "20240701"
+      fecha_final: String(ayer)      // "20240701"
     }
   };
 
@@ -80,7 +81,7 @@ async function getCompras(token, { fecha_inicial, fecha_final }) {
 // umd       <- item.umd
 // valor     <- item.vtatotal  (si prefieres sin IVA, cambia a vtasiniva o vtasinimpt)
 // -------------------------
-async function saveComprasToDatabase(items, { fecha_inicial, fecha_final }) {
+async function saveComprasToDatabase(items, { ayer }) {
   const conn = await mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -88,14 +89,14 @@ async function saveComprasToDatabase(items, { fecha_inicial, fecha_final }) {
     database: "manager2"
   });
 
-  const fechaIniMysql = yyyymmddToMysqlDate(fecha_inicial);
-  const fechaFinMysql = yyyymmddToMysqlDate(fecha_final);
+  const fechaIniMysql = yyyymmddToMysqlDate(ayer);
+  const fechaFinMysql = yyyymmddToMysqlDate(ayer);
 
   try {
     await conn.beginTransaction();
 
     // Limpia solo el rango que vas a recargar (evita duplicados)
-    console.log(`[${new Date().toISOString()}] Limpiando compras ${fecha_inicial}..${fecha_final}...`);
+    console.log(`[${new Date().toISOString()}] Limpiando compras ${ayer}..${ayer}...`);
     const batchSize = 1000;
     const insertQuery = `
       INSERT INTO compras (fecha, factura, proveedor, sku, cantidad, bodega, umd, valor)
@@ -143,10 +144,10 @@ async function syncCompras(options = {}) {
     const token = await getToken();
 
     console.log(`→ Obteniendo compras...`);
-    const compras = await getCompras(token, { ayer, ayer });
+    const compras = await getCompras(token, { ayer });
 
     console.log(`→ Guardando en DB...`);
-    await saveComprasToDatabase(compras, { ayer, ayer });
+    await saveComprasToDatabase(compras, { ayer });
 
     console.log(`[${new Date().toISOString()}] OK. Total items: ${compras.length}`);
     return { ok: true, total: compras.length };
