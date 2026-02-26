@@ -138,8 +138,7 @@ async function syncCompras(options = {}) {
 
     // Por defecto: HOY (puedes cambiarlo a ayer si quieres)
     const ayer = dayjs().subtract(1, 'day').format('YYYYMMDD');
-
-    console.log(`[${new Date().toISOString()}] Iniciando sync compras (${fecha_inicial}..${fecha_final})...`);
+    console.log(ayer);
 
     const token = await getToken();
 
@@ -159,4 +158,5 @@ async function syncCompras(options = {}) {
 
 // (Opcional) programar diario a la 1:10 AM
 // cron.schedule('10 1 * * *', () => syncCompras());
+syncCompras();
 module.exports = { syncCompras };
