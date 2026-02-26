@@ -158,5 +158,4 @@ async function syncCompras(options = {}) {
 
 // (Opcional) programar diario a la 1:10 AM
 // cron.schedule('10 1 * * *', () => syncCompras());
-syncCompras();
 module.exports = { syncCompras };
