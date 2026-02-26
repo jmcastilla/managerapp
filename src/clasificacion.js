@@ -127,6 +127,5 @@ async function ejecutarClasificacionABC() {
     console.error('Error al clasificar productos ABC:', err.message);
   }
 }
-
 // 6. Ejecutar inmediatamente
 module.exports = { ejecutarClasificacionABC };

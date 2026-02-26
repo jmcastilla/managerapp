@@ -10,7 +10,7 @@ const { syncInventario } = require('./inventario');        // cada 30 min
 const { syncProductos } = require('./productos');          // cada 24 horas
 const { syncVentas } = require('./ventas');                // cada 30 min
 const { syncVentasHoy } = require('./ventasFac001');                // cada 30 min
-
+const { syncCompras } = require('./compras');
 // ================== SCHEDULERS ==================
 
 // Inventario - cada 30 min
@@ -59,5 +59,11 @@ cron.schedule('0 2 * * *', () => {
 // fac001 - cada 24 horas (6 pm)
 cron.schedule('0 6 * * *', () => {
   console.log(`[cron] ventasfactura001`);
+  syncVentasHoy();
+});
+
+// compras - cada 24 horas (5 am)
+cron.schedule('0 5 * * *', () => {
+  console.log(`[cron] compras`);
   syncVentasHoy();
 });

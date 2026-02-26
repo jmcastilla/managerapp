@@ -9,8 +9,8 @@ async function getToken() {
   const response = await axios.post(
     process.env.LOGIN_URL,
     {
-      username: process.env.LOGIN_USER,
-      password: process.env.LOGIN_PASS
+      username: "multicentro_mngbi01",
+      password: "5D6RAPSDD54YWSB36FF4L4VVG25SQSGD6313A6RLKJNFBDG"
     },
     {
       headers: { 'Content-Type': 'application/json' }
@@ -30,15 +30,15 @@ async function getInventarioPorBodega(token, bodega) {
   const body = {
     id_solicitud: 6254,
     service: "BI216CELM7S43",
-    appuser: process.env.APPUSER,
-    pwd: process.env.APPUSER_PWD,
-    company: process.env.COMPANY,
-    entity: process.env.ENTITY,
+    appuser: "multictro",
+    pwd: "S96SYBG4G4IK56M3",
+    company: "multicentro",
+    entity: "H41SGBG006QTTY",
     data: {
       usmng: "MNGBI",
       emp: "101",
       sku: "*",
-      bod: bodega,
+      bod: "*",
       tpumd: "1",
       existencia: "e",
       igual: "1",
@@ -58,10 +58,10 @@ async function getInventarioPorBodega(token, bodega) {
 // Paso 3: Guardar en MySQL usando inserciones por lotes
 async function saveToDatabase(items) {
   const conn = await mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: "agenteia"
+    host: "206.189.175.188",
+    user: "juan",
+    password: "Juan12345!",
+    database: "manager2"
   });
 
   console.log(`[${new Date().toISOString()}] Limpiando Base de datos...`);
@@ -124,5 +124,31 @@ function parseUpdToDatetime(rawUpd) {
   return formatted; // YYYY-MM-DD HH:mm:ss
 }
 
+function unificarBodegas(inventario) {
+  const agrupado = {};
 
+  for (const item of inventario) {
+    // Unificamos 03P y 03R como "03"
+    let bodega = item.bod;
+    if (bodega === '03P' || bodega === '03R') {
+      bodega = '03A';
+    }
+
+    const clave = `${item.sku}|${item.nombre}|${bodega}`;
+
+    if (!agrupado[clave]) {
+      agrupado[clave] = {
+        sku: item.sku,
+        nombre: item.nombre,
+        bod: bodega,
+        stock: parseFloat(item.stock || 0),
+        upd: item.upd
+      };
+    } else {
+      agrupado[clave].stock += parseFloat(item.stock || 0);
+    }
+  }
+
+  return Object.values(agrupado);
+}
 module.exports = { syncInventario };
