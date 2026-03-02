@@ -202,4 +202,5 @@ async function syncVentasHoy() {
     );
   }
 }
+
 module.exports = { syncVentasHoy, getToken, getVenta };

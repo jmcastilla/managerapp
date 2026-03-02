@@ -65,5 +65,5 @@ cron.schedule('0 6 * * *', () => {
 // compras - cada 24 horas (5 am)
 cron.schedule('0 5 * * *', () => {
   console.log(`[cron] compras`);
-  syncVentasHoy();
+  syncCompras();
 });
