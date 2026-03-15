@@ -6,6 +6,7 @@ const { syncVentasHoy } = require('./ventasFac001BOG');                // cada 3
 const { syncCompras } = require('./comprasBO');
 const { syncInventario } = require('./inventarioBO');
 const { syncProductos } = require('./productosBO');
+const { syncVentas } = require('./ventasBO');
 // ================== SCHEDULERS ==================
 
 
@@ -20,9 +21,14 @@ cron.schedule('10 5 * * *', () => {
   syncCompras();
 });
 
-cron.schedule('20 5 * * *', () => {
-  console.log(`[cron] inventario`);
+cron.schedule('2/32 * * * *', () => {
+  console.log(`[cron] Inventario`);
   syncInventario();
+});
+
+cron.schedule('40 * * * *', () => {
+  console.log(`[cron] Ventas`);
+  syncVentas();
 });
 
 cron.schedule('30 5 * * *', () => {
