@@ -21,7 +21,7 @@ cron.schedule('10 5 * * *', () => {
   syncCompras();
 });
 
-cron.schedule('2/32 * * * *', () => {
+cron.schedule('2,32 * * * *', () => {
   console.log(`[cron] Inventario`);
   syncInventario();
 });
