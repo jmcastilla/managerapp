@@ -105,6 +105,5 @@ async function syncProductos() {
     console.error('Error durante sincronización:', err.message);
   }
 }
-syncProductos();
 // Ejecutar inmediatamente al iniciar
 module.exports = { syncProductos };
