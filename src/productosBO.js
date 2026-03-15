@@ -26,23 +26,17 @@ async function getToken() {
 }
 
 // Paso 2: Llamar al servicio para una bodega específica
-async function getInventarioPorBodega(token, bodega) {
+async function getproductos(token) {
   const body = {
     id_solicitud: 6254,
-    service: "BI216CELM7S43",
+    service: "BI202G42S6RG1",
     appuser: "multictro",
     pwd: "S96SYBG4G4IK56M3",
     company: "multicentro",
     entity: "H41SGBG006QTTY",
     data: {
-      usmng: "INTG",
-      emp: "101",
-      sku: "*",
-      bod: bodega,
-      tpumd: "1",
-      existencia: "e",
-      igual: "1",
-      fecha_corte: "20100101 16:40:00"
+      usmng: "MNGBI",
+      fecha_corte: "19000101 11:10:30"
     }
   };
 
@@ -52,6 +46,7 @@ async function getInventarioPorBodega(token, bodega) {
       Authorization: `Bearer ${token}`
     }
   });
+  console.log(response.data)
   return response.data.data || []; // array de objetos
 }
 
@@ -65,11 +60,11 @@ async function saveToDatabase(items) {
   });
 
   console.log(`[${new Date().toISOString()}] Limpiando Base de datos...`);
-  await conn.execute('DELETE FROM inventarios where idinventario>0');
+  await conn.execute('DELETE FROM productos');
 
   const batchSize = 1000;
   const insertQuery = `
-    INSERT INTO inventarios (sku, bod, stock)
+    INSERT INTO productos (sku, nombre, proveedor, marca, categoria)
     VALUES ?
   `;
 
@@ -77,8 +72,10 @@ async function saveToDatabase(items) {
     const batch = items.slice(i, i + batchSize);
     const values = batch.map(item => [
       item.sku,
-      item.bod,
-      parseFloat(item.stock || 0),
+      item.nombre,
+      item.proveedor,
+      item.marca,
+      item.linea
     ]);
 
     await conn.query(insertQuery, [values]);
@@ -88,66 +85,26 @@ async function saveToDatabase(items) {
 }
 
 // Paso 4: Orquestar el proceso
-async function syncInventario() {
+async function syncProductos() {
   try {
     console.log(`[${new Date().toISOString()}] Iniciando sincronización...`);
     const token = await getToken();
 
-    const bodegas = ['01', '02', '03', '04', '05', '11'];
-    const inventarioTotal = [];
 
-    for (const bodega of bodegas) {
-      console.log(`→ Obteniendo inventario de bodega ${bodega}...`);
-      const inventarioBodega = await getInventarioPorBodega(token, bodega);
-      inventarioTotal.push(...inventarioBodega);
-    }
+    console.log(`→ Obteniendo productos...`);
+    const maestro = await getproductos(token);
+
 
     // Unificamos 03P y 03R como "03" y sumamos sus stocks
     //const inventarioUnificado = unificarBodegas(inventarioTotal);
 
-    await saveToDatabase(inventarioTotal);
+    await saveToDatabase(maestro);
 
-    console.log(`[${new Date().toISOString()}] Sincronización exitosa. Total items: ${inventarioTotal.length}`);
+    console.log(`[${new Date().toISOString()}] Sincronización exitosa. Total items: ${maestro.length}`);
   } catch (err) {
     console.error('Error durante sincronización:', err.message);
   }
 }
-
-function parseUpdToDatetime(rawUpd) {
-  // Quita espacios extra si los hay
-  const clean = rawUpd.replace(/\s+/g, ' ').trim(); // "20250727 08:23:28"
-  const [datePart, timePart] = clean.split(' ');
-
-  if (!datePart || !timePart) return null;
-
-  const formatted = `${datePart.slice(0,4)}-${datePart.slice(4,6)}-${datePart.slice(6,8)} ${timePart}`;
-  return formatted; // YYYY-MM-DD HH:mm:ss
-}
-
-function unificarBodegas(inventario) {
-  const agrupado = {};
-
-  for (const item of inventario) {
-    // Unificamos 03P y 03R como "03"
-    let bodega = item.bod;
-    if (bodega === '03P' || bodega === '03R') {
-      bodega = '03A';
-    }
-
-    const clave = `${item.sku}|${item.nombre}|${bodega}`;
-
-    if (!agrupado[clave]) {
-      agrupado[clave] = {
-        sku: item.sku,
-        bod: bodega,
-        stock: parseFloat(item.stock || 0),
-        upd: item.upd
-      };
-    } else {
-      agrupado[clave].stock += parseFloat(item.stock || 0);
-    }
-  }
-
-  return Object.values(agrupado);
-}
-module.exports = { syncInventario };
+syncProductos();
+// Ejecutar inmediatamente al iniciar
+module.exports = { syncProductos };
