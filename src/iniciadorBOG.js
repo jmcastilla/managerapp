@@ -7,6 +7,7 @@ const { syncCompras } = require('./comprasBO');
 const { syncInventario } = require('./inventarioBO');
 const { syncProductos } = require('./productosBO');
 const { syncVentas } = require('./ventasBO');
+const { ejecutarClasificacionABC } = require('./clasificacionBO');
 // ================== SCHEDULERS ==================
 
 
@@ -34,4 +35,9 @@ cron.schedule('40 * * * *', () => {
 cron.schedule('30 5 * * *', () => {
   console.log(`[cron] PRODUCTOS`);
   syncProductos();
+});
+
+cron.schedule('50 5 * * *', () => {
+  console.log(`[cron] CLASIFICACION`);
+  ejecutarClasificacionABC();
 });
