@@ -64,7 +64,7 @@ async function saveToDatabase(items) {
 
   const batchSize = 1000;
   const insertQuery = `
-    INSERT INTO productos (sku, nombre, proveedor, linea)
+    INSERT INTO productos (sku, nombre, proveedor, linea, marca)
     VALUES ?
   `;
 
@@ -74,7 +74,8 @@ async function saveToDatabase(items) {
       item.sku,
       item.nombre,
       item.proveedor,
-      item.linea
+      item.linea,
+      item.marca
     ]);
 
     await conn.query(insertQuery, [values]);
